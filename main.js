@@ -1,25 +1,15 @@
-
+//stato iniziale dei messaggi della chat
 const chatMessages = [
     {
         sender: 'bot',
         avatar: './image/surfer.png',
-        text: "G'day! Sono SurfBot, il tuo concierge personale per il noleggio tavole e mute a Surf e Manly Beach! 🏄‍♀️\n\nPer consigliarti la tavola perfetta: qual è il tuo livello (principiante, intermedio o pro) e quali condizioni d'onda preferisci oggi?",
+        text: "Ciao! Sono SurfBot, il tuo assistente personale per il noleggio tavole e mute a Surf a Sydney Beach! 🏄‍♀️\n\nPer consigliarti la tavola perfetta, dimmi quali sono oggi le condizioni d'onda !",
         timestamp: "13:40"
-    },
-    {
-        sender: 'user',
-        avatar: './image/client.png',
-        text: "Ciao! Puoi aiutarmi a scegliere la tavola giusta per oggi pomeriggio a Surf? Sono un surfista intermedio e vorrei noleggiare anche la muta.",
-        timestamp: "13:42"
-    },
-    {
-        sender: 'bot',
-        avatar: './image/surfer.png',
-        text: "Ottima scelta! Con 3-4ft offshore a Surf South il banco di sabbia regge onde pulite e veloci.\n\nPer un livello intermedio ti raccomando la nostra Torq TET Funboard 7'6\": volume generoso (52.4L) per remare facile nel rip current e rail reattivi, abbinata alla muta Rip Curl Dawn Patrol 3/2mm.",
-        timestamp: "13:43"
     }
 ];
 
+
+//Minuti e secondi della bubble della chat
 /**
  * Genera il timestamp corrente visualizzato in minuti e secondi (mm:ss).
  * @param {Date} [date=new Date()]
@@ -103,6 +93,7 @@ function addMessage(sender, text, avatar) {
     return messageObj;
 }
 
+//cors authentication
 /**
  * URL base del backend Express (supporta sia esecuzione diretta su port 3000 che Live Server su porta differente tramite CORS)
  */
@@ -113,81 +104,60 @@ const BACKEND_URL = (window.location.protocol === 'http:' || window.location.pro
 /**
  * Gestione invio form utente
  */
-    async function handleChatSubmit(event) {
-        event.preventDefault();
-        const input = document.getElementById('user-input-field');
-        const text = input.value.trim();
-        if (!text) return;
+async function handleChatSubmit(event) {
+    event.preventDefault(); //si mette convenzialmente per non avere problemi di eventi js
+    const input = document.getElementById('user-input-field');
+    const text = input.value.trim();
+    if (!text) return;
 
-        addMessage('user', text, './image/client.png');
-        input.value = '';
+    addMessage('user', text, './image/client.png');
+    input.value = '';
 
-        await sendChatMessageToServer(text);
-    }
-
-    /**
-     * Invia il messaggio al server Express (/api/chat) che dialoga con OpenRouter
-     */
-    async function sendChatMessageToServer(userText) {
-        try {
-            const response = await fetch(`${BACKEND_URL}/api/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    message: userText,
-                    history: chatMessages
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Server error: status ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (data && data.reply) {
-                addMessage('bot', data.reply, './image/surfer.png');
-                return;
-            }
-        } catch (err) {
-            console.warn('Impossibile contattare il server Express o OpenRouter. Utilizzo fallback locale:', err);
-        }
-
-        // Fallback simulato se il server Express non è avviato
-        setTimeout(() => {
-        respondBotSimulated(userText);
-    }, 700);
+    await sendChatMessageToServer(text);
 }
 
 /**
- * Risposta simulata del bot
+ * Invia il messaggio al server Express (/api/chat) che dialoga con OpenRouter
  */
-function respondBotSimulated(userPrompt) {
-    const lower = userPrompt.toLowerCase();
-    let reply = "";
+async function sendChatMessageToServer(userText) {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: userText,
+                history: chatMessages
+            })
+        });
 
-    if (lower.includes('soft') || lower.includes('principiante')) {
-        reply = "Per i principianti consiglio la nostra Mick Fanning Super Soft 8'0\"! Stabilità eccezionale sulle schiume di Bondi North e pinne morbide anti-infortunio. Vuoi includere anche il leash di sicurezza?";
-    } else if (lower.includes('short') || lower.includes('performance')) {
-        reply = "Ottima scelta pro! Abbiamo la JS Industries Monsta Box 6'0\" pronta nel locker. Con 3ft offshore farai curve pulite nella parte sud della baia!";
-    } else if (lower.includes('long') || lower.includes('9ft')) {
-        reply = "Il classico log surfing australiano! La nostra McTavish Fireball 9'1\" con single fin ti regalerà noseride lunghissimi verso il promontorio di Ben Buckler.";
-    } else {
-        reply = "Ricevuto! Sto sincronizzando i dettagli con il team di Surf Beach. Puoi bloccare la tavola al locker per riservare il materiale all'istante!";
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            const errorMsg = (data && data.error) ? data.error : `Errore di connessione (status ${response.status})`;
+            addMessage('bot', `⚠️ ${errorMsg}`, './image/surfer.png');
+            return;
+        }
+
+        if (data && data.reply) {
+            addMessage('bot', data.reply, './image/surfer.png');
+            return;
+        }
+
+        addMessage('bot', "⚠️ Nessuna risposta valida ricevuta dal server.", './image/surfer.png');
+    } catch (err) {
+        console.error('Errore di comunicazione con il backend:', err);
+        addMessage('bot', "⚠️ Impossibile comunicare con il server. Assicurati che sia avviato con 'npm run dev'.", './image/surfer.png');
     }
-
-    addMessage('bot', reply, './image/surfer.png');
 }
 
 /**
  * Quick reply helper
  */
-function handleQuickReply(chipText) {
+async function handleQuickReply(chipText) {
     addMessage('user', chipText, './image/client.png');
-    setTimeout(() => {
-        respondBotSimulated(chipText);
-    }, 700);
+    await sendChatMessageToServer(chipText);
 }
 
 /**
